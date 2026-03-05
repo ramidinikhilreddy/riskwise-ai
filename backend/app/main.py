@@ -20,6 +20,6 @@ def read_root():
     return {"message": "RiskWise Backend Running 🚀"}
 
 
-@app.get("/health")
+@app.get("/health") #check
 def health_check():
     return {"status": "OK"}
