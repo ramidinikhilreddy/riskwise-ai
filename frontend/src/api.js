@@ -1,38 +1,69 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
+import { getBackendEnabled } from "./storage";
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 async function request(path, options = {}) {
-  const isForm = options.body instanceof FormData;
+  if (!getBackendEnabled()) {
+    throw new Error("Backend disconnected (disabled in UI).");
+  }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
-    headers: {
-      ...(isForm ? {} : { "Content-Type": "application/json" }),
-      ...(options.headers || {}),
-    },
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(text || `HTTP ${res.status}`);
+    throw new Error(text || `Request failed: ${res.status}`);
   }
 
   const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) return null;
-  return res.json();
+  if (ct.includes("application/json")) return res.json();
+  return res.text();
 }
 
-export function listProjects() {
-  return request("/projects", { method: "GET" });
-}
+export const api = {
+  baseUrl: BASE_URL,
 
-export function createProject(data) {
-  return request("/projects", { method: "POST", body: JSON.stringify(data) });
-}
+  health: () => request("/health"),
 
-export function updateProject(id, data) {
-  return request(`/projects/${id}`, { method: "PUT", body: JSON.stringify(data) });
-}
+  listProjects: () => request("/projects"),
+  createProject: (payload) =>
+    request("/projects", { method: "POST", body: JSON.stringify(payload) }),
+  deleteProject: (projectId) =>
+    request(`/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" }),
 
-export function deleteProject(id) {
-  return request(`/projects/${id}`, { method: "DELETE" });
-}
+  uploadCsv: (projectId, file) => {
+    const form = new FormData();
+    form.append("file", file);
+
+    return fetch(`${BASE_URL}/projects/${encodeURIComponent(projectId)}/upload`, {
+      method: "POST",
+      body: form,
+    }).then(async (res) => {
+      if (!getBackendEnabled()) throw new Error("Backend disconnected (disabled in UI).");
+      if (!res.ok) throw new Error((await res.text()) || `Upload failed: ${res.status}`);
+      return res.json().catch(() => ({}));
+    });
+  },
+
+  // Dashboard: try multiple endpoints so it works even if your backend differs
+  getDashboard: async (projectId) => {
+    const candidates = [
+      `/projects/${encodeURIComponent(projectId)}/dashboard`,
+      `/projects/${encodeURIComponent(projectId)}/summary`,
+      `/dashboard/${encodeURIComponent(projectId)}`,
+      `/dashboard?project_id=${encodeURIComponent(projectId)}`,
+    ];
+
+    let lastErr = null;
+    for (const path of candidates) {
+      try {
+        return await request(path);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("Dashboard endpoint not found");
+  },
+};

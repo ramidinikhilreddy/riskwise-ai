@@ -1,60 +1,61 @@
 import { useState } from "react";
+import { api } from "../api";
 
-export default function UploadPage() {
-  const [projectId, setProjectId] = useState("");
+export default function UploadPage({ selectedProjectId, onSelectProject }) {
+  const [projectId, setProjectId] = useState(selectedProjectId || "");
   const [file, setFile] = useState(null);
+  const [ok, setOk] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function upload() {
+    setOk("");
+    setErr("");
+
+    const pid = projectId.trim();
+    if (!pid) return setErr("Project ID is required.");
+    if (!file) return setErr("Please choose a CSV file.");
+
+    setLoading(true);
+    try {
+      await api.uploadCsv(pid, file);
+      onSelectProject(pid); // ✅ save to global selected
+      setOk("CSV uploaded ✅");
+    } catch (e) {
+      setErr(e.message || "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div style={{
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: 18,
-        padding: 16
-      }}>
-        <h2 style={{ margin: 0 }}>Upload CSV</h2>
-        <p style={{ opacity: 0.75, marginTop: 6 }}>
-          Prepare for: <b>POST /projects/{`{project_id}`}/upload</b>
-        </p>
+    <div className="panel">
+      <div className="title">Upload CSV</div>
+      <p className="sub">Prepare for: <b>POST /projects/{`{project_id}`}/upload</b></p>
 
-        <div style={{ display: "grid", gap: 10, maxWidth: 520 }}>
-          <label style={{ fontSize: 13, opacity: 0.8 }}>Project ID</label>
-          <input
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            placeholder="e.g., 1"
-            style={{
-              height: 42, borderRadius: 14, padding: "0 12px",
-              background: "rgba(0,0,0,0.22)", color: "white",
-              border: "1px solid rgba(255,255,255,0.12)"
-            }}
-          />
+      {ok && <div className="notice ok">{ok}</div>}
+      {err && <div className="notice bad">{err}</div>}
 
-          <label style={{ fontSize: 13, opacity: 0.8 }}>CSV File</label>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            style={{ color: "white" }}
-          />
+      <div className="panel inner" style={{ maxWidth: 900 }}>
+        <label className="label">Project ID</label>
+        <input
+          className="input"
+          value={projectId}
+          placeholder="e.g., 1"
+          onChange={(e) => setProjectId(e.target.value)}
+        />
 
-          <button
-            disabled={!projectId || !file}
-            onClick={() => alert("Upload endpoint not connected yet. UI ready.")}
-            style={{
-              height: 42,
-              borderRadius: 14,
-              fontWeight: 900,
-              cursor: "pointer",
-              border: "1px solid rgba(255,255,255,0.14)",
-              background: "linear-gradient(135deg, rgba(124,58,237,1), rgba(6,182,212,0.95))",
-              color: "white",
-              opacity: (!projectId || !file) ? 0.5 : 1
-            }}
-          >
-            Upload (soon)
-          </button>
-        </div>
+        <label className="label">CSV File</label>
+        <input
+          className="inputFile"
+          type="file"
+          accept=".csv"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+
+        <button className="btn btnPrimary" onClick={upload} disabled={loading}>
+          {loading ? "Uploading..." : "Upload"}
+        </button>
       </div>
     </div>
   );

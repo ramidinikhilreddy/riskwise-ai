@@ -1,47 +1,87 @@
-export default function DashboardPage() {
-  const riskScore = 0.74;
-  const riskLevel = riskScore > 0.7 ? "High" : riskScore > 0.4 ? "Medium" : "Low";
+import { useState } from "react";
+import { api } from "../api";
+
+export default function DashboardPage({ selectedProjectId }) {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const [riskScore, setRiskScore] = useState(0.74);
+  const [riskLevel, setRiskLevel] = useState("High");
+  const [predictedDefects, setPredictedDefects] = useState(12);
+  const [hotspot, setHotspot] = useState("auth.py");
+  const [drivers, setDrivers] = useState(["High churn", "Low test coverage", "Large commits"]);
+
+  async function refresh() {
+    setErr("");
+    setMsg("");
+
+    if (!selectedProjectId) {
+      setErr("No project selected. Go to Projects and click Select.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const d = await api.getDashboard(selectedProjectId);
+
+      // accept flexible backend response shapes
+      const rs = d.risk_score ?? d.riskScore ?? d.score;
+      const rl = d.risk_level ?? d.riskLevel ?? d.level;
+      const pd = d.predicted_defects ?? d.predictedDefects ?? d.defects;
+      const hs = d.hotspot ?? d.hotspot_file ?? d.hotspotFile;
+      const td = d.top_drivers ?? d.topDrivers ?? d.drivers;
+
+      if (rs != null) setRiskScore(Number(rs));
+      if (rl) setRiskLevel(String(rl));
+      if (pd != null) setPredictedDefects(Number(pd));
+      if (hs) setHotspot(String(hs));
+      if (Array.isArray(td)) setDrivers(td.map(String));
+
+      setMsg("Dashboard refreshed ✅");
+    } catch {
+      setMsg("Backend dashboard not ready — showing mock preview ✅");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div style={{
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: 18,
-        padding: 16
-      }}>
-        <h2 style={{ margin: 0 }}>Dashboard</h2>
-        <p style={{ opacity: 0.75, marginTop: 6 }}>
-          Mock preview (replace with API later)
-        </p>
+    <div className="panel">
+      <div className="title">Dashboard</div>
+      <p className="sub">Mock preview (replace with API later)</p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div style={{ padding: 14, borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.05)" }}>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Risk Score</div>
-            <div style={{ fontSize: 28, fontWeight: 900, marginTop: 6 }}>{riskScore.toFixed(2)}</div>
-            <div style={{ marginTop: 8, opacity: 0.85 }}>Level: <b>{riskLevel}</b></div>
-          </div>
+      {err && <div className="notice bad">{err}</div>}
+      {msg && <div className="notice ok">{msg}</div>}
 
-          <div style={{ padding: 14, borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.05)" }}>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Predicted Defects</div>
-            <div style={{ fontSize: 28, fontWeight: 900, marginTop: 6 }}>12</div>
-            <div style={{ marginTop: 8, opacity: 0.85 }}>Hotspot: <b>auth.py</b></div>
-          </div>
-
-          <div style={{ padding: 14, borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.05)" }}>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Top Drivers</div>
-            <ol style={{ marginTop: 10, opacity: 0.85 }}>
-              <li>High churn</li>
-              <li>Low test coverage</li>
-              <li>Large commits</li>
-            </ol>
-          </div>
+      <div className="cardRow">
+        <div className="smallCard">
+          <div className="mutedSmall">Risk Score</div>
+          <div className="bigNum">{Number(riskScore).toFixed(2)}</div>
+          <div className="muted">Level: <b>{riskLevel}</b></div>
         </div>
 
-        <div style={{ marginTop: 12, padding: 14, borderRadius: 16, border: "1px dashed rgba(255,255,255,0.18)", opacity: 0.8 }}>
-          Charts placeholder: risk trend, defects by module, metrics over time.
+        <div className="smallCard">
+          <div className="mutedSmall">Predicted Defects</div>
+          <div className="bigNum">{predictedDefects}</div>
+          <div className="muted">Hotspot: <b>{hotspot}</b></div>
+        </div>
+
+        <div className="smallCard">
+          <div className="mutedSmall">Top Drivers</div>
+          <ol className="drivers">
+            {drivers.map((d, i) => <li key={i}>{d}</li>)}
+          </ol>
         </div>
       </div>
+
+      <div className="dashPlaceholder">
+        Charts placeholder: risk trend, defects by module, metrics over time.
+      </div>
+
+      <button className="btn" onClick={refresh} disabled={loading} style={{ marginTop: 12 }}>
+        {loading ? "Refreshing..." : "Refresh Dashboard"}
+      </button>
     </div>
   );
 }

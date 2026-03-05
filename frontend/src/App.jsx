@@ -1,87 +1,200 @@
-import { Routes, Route, NavLink } from "react-router-dom";
-import ProjectDashboard from "./pages/ProjectDashboard.jsx";
+import { BrowserRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import "./App.css";
+
+import ProjectsPage from "./pages/ProjectsPage.jsx";
 import UploadPage from "./pages/UploadPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
 
-const navLinkStyle = ({ isActive }) => ({
-  padding: "10px 12px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: isActive ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.06)",
-  fontWeight: 800,
-});
+import { api } from "./api";
+import {
+  getBackendEnabled,
+  getSelectedProjectId,
+  setBackendEnabled,
+  setSelectedProjectId,
+} from "./storage";
 
-export default function App() {
+function TopBar({
+  selectedProjectId,
+  setSelectedProjectIdState,
+  backendOk,
+  setBackendOk,
+  backendEnabled,
+  setBackendEnabledState,
+}) {
+  async function refreshHealth() {
+    try {
+      await api.health();
+      setBackendOk(true);
+    } catch {
+      setBackendOk(false);
+    }
+  }
+
+  function disconnect() {
+    setBackendEnabledState(false);
+    setBackendEnabled(false);
+    setBackendOk(false);
+  }
+
+  function connect() {
+    setBackendEnabledState(true);
+    setBackendEnabled(true);
+    refreshHealth();
+  }
+
   return (
-    <div style={{ minHeight: "100vh" }}>
-      {/* Top bar */}
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 20,
-          borderBottom: "1px solid rgba(255,255,255,0.10)",
-          background: "rgba(7,9,15,0.65)",
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: "0 auto",
-            padding: "14px 18px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 12,
-                background:
-                  "linear-gradient(135deg, rgba(124,58,237,1), rgba(6,182,212,1))",
-              }}
-            />
-            <div>
-              <div style={{ fontWeight: 900 }}>RiskWise</div>
-              <div style={{ fontSize: 12, opacity: 0.7 }}>
-                AI Risk & Defect Prediction
-              </div>
-            </div>
-          </div>
-
-          {/* Nav */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <NavLink to="/" style={navLinkStyle}>
-              Projects
-            </NavLink>
-            <NavLink to="/upload" style={navLinkStyle}>
-              Upload
-            </NavLink>
-            <NavLink to="/dashboard" style={navLinkStyle}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/reports" style={navLinkStyle}>
-              Reports
-            </NavLink>
+    <div className="topbarWrap">
+      <div className="topbar">
+        <div className="brand">
+          <div className="logo" />
+          <div>
+            <div className="brandTitle">RiskWise</div>
+            <div className="brandSubtitle">AI Risk & Defect Prediction</div>
           </div>
         </div>
-      </div>
 
-      {/* Pages */}
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: 18 }}>
-        <Routes>
-          <Route path="/" element={<ProjectDashboard />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-        </Routes>
+        <div className="nav">
+          <NavLink to="/" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>
+            Projects
+          </NavLink>
+          <NavLink to="/upload" className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>
+            Upload
+          </NavLink>
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) => `tab ${isActive ? "active" : ""}`}
+          >
+            Dashboard
+          </NavLink>
+          <NavLink to="/reports" className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>
+            Reports
+          </NavLink>
+        </div>
+
+        <div className="right">
+          <div className={`pill ${backendEnabled && backendOk ? "ok" : "bad"}`}>
+            {backendEnabled && backendOk ? "Backend connected" : "Backend disconnected"}
+          </div>
+
+          {backendEnabled ? (
+            <button className="btn" onClick={disconnect}>
+              Disconnect
+            </button>
+          ) : (
+            <button className="btn btnPrimary" onClick={connect}>
+              Connect
+            </button>
+          )}
+
+          <button className="btn" onClick={refreshHealth}>
+            Refresh
+          </button>
+
+          <input
+            className="input"
+            style={{ width: 260 }}
+            placeholder="Current Project ID"
+            value={selectedProjectId}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSelectedProjectIdState(v);
+              setSelectedProjectId(v);
+            }}
+          />
+        </div>
       </div>
     </div>
+  );
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  return null;
+}
+
+export default function App() {
+  const [selectedProjectIdState, setSelectedProjectIdState] = useState(getSelectedProjectId());
+  const [backendEnabledState, setBackendEnabledState] = useState(getBackendEnabled());
+  const [backendOk, setBackendOk] = useState(false);
+
+  // initial health
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!getBackendEnabled()) return setBackendOk(false);
+        await api.health();
+        setBackendOk(true);
+      } catch {
+        setBackendOk(false);
+      }
+    })();
+  }, []);
+
+  // sync localStorage → state (if user selects project in page)
+  useEffect(() => {
+    const i = setInterval(() => {
+      const pid = getSelectedProjectId();
+      if (pid !== selectedProjectIdState) setSelectedProjectIdState(pid);
+
+      const be = getBackendEnabled();
+      if (be !== backendEnabledState) setBackendEnabledState(be);
+    }, 300);
+    return () => clearInterval(i);
+  }, [selectedProjectIdState, backendEnabledState]);
+
+  const shared = useMemo(
+    () => ({
+      selectedProjectId: selectedProjectIdState,
+      setSelectedProjectId: (id) => {
+        setSelectedProjectIdState(id);
+        setSelectedProjectId(id);
+      },
+    }),
+    [selectedProjectIdState]
+  );
+
+  return (
+    <BrowserRouter>
+      <ScrollToTop />
+      <div className="app">
+        <TopBar
+          selectedProjectId={selectedProjectIdState}
+          setSelectedProjectIdState={setSelectedProjectIdState}
+          backendOk={backendOk}
+          setBackendOk={setBackendOk}
+          backendEnabled={backendEnabledState}
+          setBackendEnabledState={setBackendEnabledState}
+        />
+
+        <div className="container">
+          <Routes>
+            <Route
+              path="/"
+              element={<ProjectsPage onSelectProject={shared.setSelectedProjectId} />}
+            />
+            <Route
+              path="/upload"
+              element={
+                <UploadPage
+                  selectedProjectId={shared.selectedProjectId}
+                  onSelectProject={shared.setSelectedProjectId}
+                />
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={<DashboardPage selectedProjectId={shared.selectedProjectId} />}
+            />
+            <Route
+              path="/reports"
+              element={<ReportsPage selectedProjectId={shared.selectedProjectId} />}
+            />
+          </Routes>
+        </div>
+      </div>
+    </BrowserRouter>
   );
 }
