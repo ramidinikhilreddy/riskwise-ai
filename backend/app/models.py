@@ -1,5 +1,6 @@
-from sqlalchemy import Column, String, Integer, Float, ForeignKey
+from sqlalchemy import Column, String, DateTime, Float, Integer, ForeignKey
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from .database import Base
 
 
@@ -10,25 +11,26 @@ class Project(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=False)
 
-    metrics = relationship("ProjectMetrics", back_populates="project")
 
+class PredictionRun(Base):
+    __tablename__ = "prediction_runs"
+    id = Column(String, primary_key=True, index=True)
+    project_id = Column(String, ForeignKey("projects.id"), index=True)
+    filename = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    rows = Column(Integer)
+    threshold = Column(Float)
+    avg_probability = Column(Float)
+    count_defective = Column(Integer)
+    percent_defective = Column(Float)
+    project = relationship("Project", backref="prediction_runs")
 
-class ProjectMetrics(Base):
-    __tablename__ = "project_metrics"
-
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(String, ForeignKey("projects.id"))
-
-    total_open_issues = Column(Integer)
-    total_bug_issues = Column(Integer)
-    total_closed_issues = Column(Integer)
-    total_commits = Column(Integer)
-    total_churn = Column(Integer)
-    average_velocity = Column(Float)
-    issue_close_rate = Column(Float)
-    bug_ratio = Column(Float)
-
-    risk_score = Column(Float)
+class PredictionRow(Base):
+    __tablename__ = "prediction_rows"
+    id = Column(String, primary_key=True, index=True)
+    run_id = Column(String, ForeignKey("prediction_runs.id"), index=True)
+    row_index = Column(Integer)
+    probability_defect = Column(Float)
+    predicted_class = Column(Integer)
     risk_level = Column(String)
-
-    project = relationship("Project", back_populates="metrics")
+    run = relationship("PredictionRun", backref="prediction_rows")
