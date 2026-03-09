@@ -36,3 +36,52 @@ class PredictCSVResponse(BaseModel):
     rows: int
     summary: PredictionSummary
     results: List[Dict[str, Any]]  # keeps it flexible for all the columns
+
+
+class GithubConnectRequest(BaseModel):
+    repo_full_name: str  # owner/repo
+    token: Optional[str] = None  # PAT (recommended). Not stored.
+
+
+class GithubRepoResponse(BaseModel):
+    project_id: str
+    repo_full_name: str
+    connected_at: Optional[str] = None
+
+
+class GithubMetricsRequest(BaseModel):
+    token: Optional[str] = None  # PAT. Not stored.
+    days: int = 30
+
+
+class GithubMetricsResponse(BaseModel):
+    project_id: str
+    repo_full_name: str
+    window_days: int
+    commits: int
+    open_issues: int
+    closed_issues: int
+    merged_prs: int
+    churn_additions: int
+    churn_deletions: int
+    velocity_14d: int
+    sprint_risk: Dict[str, Any]
+
+
+class FeatureImportanceItem(BaseModel):
+    feature: str
+    importance: float
+    importance_pct: float
+
+
+class ModelEvaluationResponse(BaseModel):
+    project_id: str
+    evaluation_id: str
+    filename: Optional[str] = None
+    label_column: str
+    rows: int
+    accuracy: float
+    precision: float
+    recall: float
+    f1: float
+    confusion_matrix: List[List[int]]
